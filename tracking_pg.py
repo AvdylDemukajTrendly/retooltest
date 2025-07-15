@@ -1,0 +1,116 @@
+import os
+from datetime import datetime
+from typing import Optional, Dict, Any
+from dotenv import load_dotenv
+import psycopg2
+
+# Load environment variables from .env file
+load_dotenv()
+
+PG_CONN = {
+    "host":     os.getenv("DB_HOST"),
+    "port":     int(os.getenv("DB_PORT", "5432")),
+    "dbname":   os.getenv("DB_NAME"),
+    "user":     os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+}
+
+INSERT_SQL = """
+INSERT INTO reposted_video_tracking (
+  original_video_id, original_channel_id, original_channel_name,
+  original_title, original_description, original_posted_at,
+  original_views, original_revenue,
+  reposted_video_id, reposted_channel_id, reposted_channel_name,
+  reposted_title, reposted_description, reposted_at,
+  repost_number, video_url, status,
+  total_reposts_for_video,
+  reposted_post_id
+)
+VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);
+"""
+
+UPDATE_STATUS_SQL = """
+UPDATE reposted_video_tracking
+SET status = %s,
+    reposted_video_id = COALESCE(%s, reposted_video_id),
+    reposted_at       = COALESCE(%s, reposted_at),
+    repost_number     = repost_number + 1,
+    last_checked_at   = NOW()
+WHERE original_video_id = %s
+  AND reposted_channel_id = %s;
+"""
+
+def get_conn():
+    return psycopg2.connect(**PG_CONN)
+
+def insert_repost(cur, data: Dict[str, Any], status: str = "queued"):
+    # Hapi 1: Gjej numrin e repost-eve ekzistuese për këtë video
+    cur.execute("SELECT COUNT(*) FROM reposted_video_tracking WHERE original_video_id = %s", (data["original_video_id"],))
+    # 'repost_number_for_this_entry' do të jetë 'COUNT + 1'. P.sh., nese 0 ekzistojne, ky eshte repost nr. 1.
+    repost_number_for_this_entry = cur.fetchone()[0] + 1
+
+    # Nxjerrja dhe ndarja e post_id nese vjen si "PAGE_ID_POST_ID"
+    reposted_post_id_full = data.get("reposted_post_id")
+    reposted_post_id_short = None
+    if reposted_post_id_full and '_' in reposted_post_id_full:
+        reposted_post_id_short = reposted_post_id_full.split('_')[-1]
+    elif reposted_post_id_full:
+        reposted_post_id_short = reposted_post_id_full
+
+    # Hapi 2: Shto rekordin e ri me 'repost_number' të saktë
+    cur.execute(INSERT_SQL, (
+        data["original_video_id"], data["original_channel_id"], data.get("original_channel_name"),
+        data.get("original_title"), data.get("original_description"), data["original_posted_at"],
+        data.get("original_views"), data.get("original_revenue"),
+        data.get("reposted_video_id"), data["reposted_channel_id"], data.get("reposted_channel_name"),
+        data.get("reposted_title"), data.get("reposted_description"), data.get("reposted_at"),
+        repost_number_for_this_entry, # <-- Kjo është numri i ripostimit aktual (1, 2, 3...)
+        data.get("video_url"), status,
+        repost_number_for_this_entry, # <-- Kjo është vlera fillestare për rreshtin e ri, do përditësohet menjëherë
+        reposted_post_id_short
+    ))
+
+    # Hapi 3: Llogarit totalin aktual të ripostimeve pas shtimit të rekordit të ri
+    cur.execute("SELECT COUNT(*) FROM reposted_video_tracking WHERE original_video_id = %s", (data["original_video_id"],))
+    final_total_reposts = cur.fetchone()[0]
+
+    # Hapi 4: Përditëso kolonën 'total_reposts_for_video' në TË GJITHA rekordet
+    # për këtë video_id, duke pasqyruar totalin e ri.
+    cur.execute("""
+        UPDATE reposted_video_tracking
+        SET total_reposts_for_video = %s
+        WHERE original_video_id = %s;
+    """, (final_total_reposts, data["original_video_id"]))
+
+def update_status(cur,
+                  original_video_id: str,
+                  channel_id: str,
+                  status: str,
+                  reposted_video_id: Optional[str] = None,
+                  reposted_at: Optional[datetime] = None):
+    cur.execute(UPDATE_STATUS_SQL, (
+        status, reposted_video_id, reposted_at,
+        original_video_id, channel_id
+    ))
+
+UPDATE_POST_ID_SQL = """
+UPDATE reposted_video_tracking
+SET reposted_post_id = %s,
+    reposted_at = NOW()
+WHERE original_video_id = %s
+  AND original_channel_id = %s;
+"""
+
+def update_post_id(cur, original_video_id: str, original_channel_id: str, new_post_id: str):
+    # Nxjerrja dhe ndarja e post_id nese vjen si "PAGE_ID_POST_ID"
+    reposted_post_id_short = None
+    if new_post_id and '_' in new_post_id:
+        reposted_post_id_short = new_post_id.split('_')[-1]
+    elif new_post_id:
+        reposted_post_id_short = new_post_id
+
+    cur.execute(UPDATE_POST_ID_SQL, (
+        reposted_post_id_short,
+        original_video_id,
+        original_channel_id
+    ))
