@@ -23,6 +23,7 @@ app.add_middleware(
 class PostRequest(BaseModel):
     video_id: str
     channel_id: str
+    target_channel_id: str                      # <--- Shtuar
     original_channel_name: Optional[str] = None
     title: Optional[str] = None
     description: Optional[str] = None
@@ -55,22 +56,23 @@ def post_to_facebook(req: PostRequest):
         with tracking_pg.get_conn() as pg:
             cur = pg.cursor()
             tracking_pg.insert_repost(cur, {
-                "original_video_id": req.video_id,
-                "original_channel_id": req.channel_id,
-                "original_channel_name": req.original_channel_name,
-                "original_title": req.title,
-                "original_description": req.description,
-                "original_posted_at": datetime.now(),
-                "original_views": None,
-                "original_revenue": None,
-                "reposted_video_id": fb_video_id,
-                "reposted_channel_id": req.channel_id,
-                "reposted_channel_name": req.target_channel_name,
-                "reposted_title": req.title,
-                "reposted_description": req.description,
-                "reposted_at": req.schedule_post or datetime.now(),
-                "repost_number": 1,
-                "video_url": req.video_url,
+                "original_video_id":      req.video_id,
+                "original_channel_id":    req.channel_id,
+                "original_channel_name":  req.original_channel_name,
+                "original_title":         req.title,
+                "original_description":   req.description,
+                "original_posted_at":     datetime.now(),
+                "original_views":         None,
+                "original_revenue":       None,
+
+                "reposted_video_id":      fb_video_id,
+                "reposted_channel_id":    req.target_channel_id,    # <--- Ndryshuar
+                "reposted_channel_name":  req.target_channel_name,
+                "reposted_title":         req.title,
+                "reposted_description":   req.description,
+                "reposted_at":            req.schedule_post or datetime.now(),
+                "repost_number":          1,
+                "video_url":              req.video_url,
             }, status="posted" if not req.schedule_post else "scheduled")
             pg.commit()
 
@@ -94,4 +96,4 @@ def update_scheduled_video_post_id(video_id: str, channel_id: str, req: UpdatePo
         return {"status": "success", "message": f"Post ID updated for video {video_id}"}
     except Exception as e:
         print(f"[ERROR] Failed to update post ID: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to update post ID: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Failed to update post ID: {str(e)}")
