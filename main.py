@@ -5,25 +5,25 @@ from datetime import datetime
 import tracking_pg
 import os
 
-# === CORS Middleware për të lejuar Retool/Frontend ===
+# === CORS Middleware to allow Retool/Frontend ===
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# Lejo të gjitha origjinat për testim, kufizo në prodhim!
+# Allow all origins for testing, restrict in production!
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # NDRYSHOJE me domain-in e Retool në prodhim!
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# === MODELET ===
+# === MODELS ===
 class PostRequest(BaseModel):
     video_id: str
     channel_id: str
-    target_channel_id: str                      # <--- Shtuar
+    target_channel_id: str                     
     original_channel_name: Optional[str] = None
     title: Optional[str] = None
     description: Optional[str] = None
@@ -37,13 +37,13 @@ class PostResponse(BaseModel):
     fb_post_id: Optional[str] = None
     message: Optional[str] = None
 
-# === ENDPOINT për postim në Facebook (simulim) ===
+# === ENDPOINT for posting to Facebook (simulation) ===
 @app.post("/post-to-facebook", response_model=PostResponse)
 def post_to_facebook(req: PostRequest):
     fb_video_id = None
     fb_post_id = None
 
-    # Simulo logjikën e Facebook API
+    # Simulate Facebook API logic
     if req.schedule_post:
         fb_video_id = f"FAKE_VIDEO_ID_SCHEDULED_{req.video_id}"
         fb_post_id = None
@@ -52,7 +52,7 @@ def post_to_facebook(req: PostRequest):
         fb_post_id = f"FAKE_PAGE_ID_FAKE_POST_ID_{req.video_id}"
 
     try:
-        # Ruaj tracking në DB përmes tracking_pg.py
+        # Save tracking in DB via tracking_pg.py
         with tracking_pg.get_conn() as pg:
             cur = pg.cursor()
             tracking_pg.insert_repost(cur, {
@@ -81,18 +81,30 @@ def post_to_facebook(req: PostRequest):
         print(f"[ERROR] Processing and tracking failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Processing and tracking failed: {str(e)}")
 
-# === ENDPOINT për update të post_id pas publikimit të planifikuar ===
+
 class UpdatePostIdRequest(BaseModel):
     new_fb_post_id: str
 
-@app.patch("/videos/{video_id}/{channel_id}/update-post-id")
-def update_scheduled_video_post_id(video_id: str, channel_id: str, req: UpdatePostIdRequest):
+@app.patch("/videos/{video_id}/{reposted_channel_id}/update-post-id")
+def update_scheduled_video_post_id(
+    video_id: str,
+    reposted_channel_id: str,
+    req: UpdatePostIdRequest
+):
     try:
         with tracking_pg.get_conn() as pg:
             cur = pg.cursor()
-            tracking_pg.update_post_id(cur, video_id, channel_id, req.new_fb_post_id)
+            tracking_pg.update_post_id(
+                cur,
+                original_video_id=video_id,
+                reposted_channel_id=reposted_channel_id,
+                new_post_id=req.new_fb_post_id
+            )
             pg.commit()
-        return {"status": "success", "message": f"Post ID updated for video {video_id}"}
+        return {
+            "status": "success",
+            "message": f"Post ID updated for video {video_id} on channel {reposted_channel_id}"
+        }
     except Exception as e:
         print(f"[ERROR] Failed to update post ID: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to update post ID: {str(e)}")
