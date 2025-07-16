@@ -23,10 +23,9 @@ INSERT INTO reposted_video_tracking (
   reposted_video_id, reposted_channel_id, reposted_channel_name,
   reposted_title, reposted_description, reposted_at,
   repost_number, video_url, status,
-  total_reposts_for_video,
-  reposted_post_id
+  total_reposts_for_video
 )
-VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);
+VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);
 """
 
 UPDATE_STATUS_SQL = """

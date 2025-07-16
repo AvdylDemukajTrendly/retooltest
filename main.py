@@ -23,6 +23,7 @@ app.add_middleware(
 class PostRequest(BaseModel):
     video_id: str
     channel_id: str
+    original_channel_name: Optional[str] = None
     title: Optional[str] = None
     description: Optional[str] = None
     video_url: Optional[str] = None
@@ -56,7 +57,7 @@ def post_to_facebook(req: PostRequest):
             tracking_pg.insert_repost(cur, {
                 "original_video_id": req.video_id,
                 "original_channel_id": req.channel_id,
-                "original_channel_name": None,
+                "original_channel_name": req.original_channel_name,
                 "original_title": req.title,
                 "original_description": req.description,
                 "original_posted_at": datetime.now(),
@@ -70,7 +71,6 @@ def post_to_facebook(req: PostRequest):
                 "reposted_at": req.schedule_post or datetime.now(),
                 "repost_number": 1,
                 "video_url": req.video_url,
-                "reposted_post_id": fb_post_id,
             }, status="posted" if not req.schedule_post else "scheduled")
             pg.commit()
 
