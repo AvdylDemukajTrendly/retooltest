@@ -64,9 +64,8 @@ def post_to_facebook(req: PostRequest):
                 "original_posted_at":     datetime.now(),
                 "original_views":         None,
                 "original_revenue":       None,
-
                 "reposted_video_id":      fb_video_id,
-                "reposted_channel_id":    req.target_channel_id,    # <--- Ndryshuar
+                "reposted_channel_id":    req.target_channel_id,   
                 "reposted_channel_name":  req.target_channel_name,
                 "reposted_title":         req.title,
                 "reposted_description":   req.description,

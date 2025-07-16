@@ -96,13 +96,14 @@ def update_status(cur,
 UPDATE_POST_ID_SQL = """
 UPDATE reposted_video_tracking
 SET reposted_post_id = %s,
-    reposted_at = NOW()
-WHERE original_video_id = %s
-  AND original_channel_id = %s;
+    reposted_at       = NOW(),
+    status            = 'posted'
+WHERE original_video_id       = %s
+  AND reposted_channel_id     = %s;
 """
 
-def update_post_id(cur, original_video_id: str, original_channel_id: str, new_post_id: str):
-    # Nxjerrja dhe ndarja e post_id nese vjen si "PAGE_ID_POST_ID"
+def update_post_id(cur, original_video_id: str, reposted_channel_id: str, new_post_id: str):
+    # extract the short post_id as before
     reposted_post_id_short = None
     if new_post_id and '_' in new_post_id:
         reposted_post_id_short = new_post_id.split('_')[-1]
@@ -112,5 +113,5 @@ def update_post_id(cur, original_video_id: str, original_channel_id: str, new_po
     cur.execute(UPDATE_POST_ID_SQL, (
         reposted_post_id_short,
         original_video_id,
-        original_channel_id
+        reposted_channel_id
     ))
