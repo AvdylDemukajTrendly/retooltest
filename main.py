@@ -71,8 +71,7 @@ def post_to_facebook(req: PostRequest):
                 "reposted_description":   req.description,
                 "reposted_at":            req.schedule_post or datetime.now(),
                 "repost_number":          1,
-                "video_url":              req.video_url,
-                "reposted_post_id":       fb_post_id, # Added this line
+                "video_url":              req.video_url
             }, status="posted" if not req.schedule_post else "scheduled")
             pg.commit()
 
